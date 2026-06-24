@@ -4,7 +4,6 @@ import { operationToTypeName } from "./types.js";
 interface GenerateClientOptions {
   endpoints: ParsedEndpoint[];
   config: AxigenConfig;
-  /** مسیر نسبی فایل types نسبت به فایل client */
   typesRelativePath?: string;
 }
 

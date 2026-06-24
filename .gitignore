@@ -31,3 +31,6 @@ coverage/
 
 # Temp
 *.tsbuildinfo
+
+# Examples
+example/
