@@ -81,6 +81,10 @@ module.exports = {
   axiosInstancePath: '../lib/axios',
   language: 'ts',
   jsdoc: true,
+  functionName: {
+    transforms: [{ match: "-([a-zA-Z])", flags: "g", replacement: "upper:$1" }],
+    appendMethod: ["post", "put", "delete", "patch", "get", "head", "options"],
+  },
 }
 `;
 
