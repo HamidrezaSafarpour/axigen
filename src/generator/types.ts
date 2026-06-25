@@ -1,11 +1,11 @@
 import type { SchemaObject, ParsedEndpoint } from "../types.js";
 
-// ─── Convert schema into TypeScript type string ────────────────────────────────────
+// ─── Schema → TypeScript type string ─────────────────────────────────────────
 
 export function schemaToTSType(schema: SchemaObject | undefined, indent = 0): string {
   if (!schema) return "unknown";
 
-  // $ref — then resolve, get name yet
+  // $ref — extract the type name and reference it directly (no inline expansion)
   if (schema.$ref) {
     return refToTypeName(schema.$ref);
   }
@@ -40,7 +40,6 @@ export function schemaToTSType(schema: SchemaObject | undefined, indent = 0): st
     case "object":
       return buildObjectType(schema, indent) + nullable;
     default:
-      // Don't have type — if has properties, consider object
       if (schema.properties) {
         return buildObjectType(schema, indent) + nullable;
       }
@@ -70,12 +69,12 @@ function buildObjectType(schema: SchemaObject, indent: number): string {
 }
 
 function refToTypeName(ref: string): string {
-  // #/components/schemas/UserResponse  →  UserResponse
+  // '#/components/schemas/UserResponse' → 'UserResponse'
   const parts = ref.split("/");
   return parts[parts.length - 1] ?? "unknown";
 }
 
-// ─── Generate types.ts file ────────────────────────────────────────────────────────
+// ─── Generate types.ts file content ──────────────────────────────────────────
 
 export function generateTypesFile(endpoints: ParsedEndpoint[], schemas: Record<string, SchemaObject> = {}): string {
   const lines: string[] = [];
@@ -84,7 +83,11 @@ export function generateTypesFile(endpoints: ParsedEndpoint[], schemas: Record<s
   lines.push(`// Generated at: ${new Date().toISOString()}`);
   lines.push("");
 
-  // ─── Component schemas ───────────────────────────────────────────────────────
+  // Track all type names declared in component schemas
+  // so we skip re-declaring them in endpoint types
+  const declaredInComponents = new Set<string>(Object.keys(schemas));
+
+  // ─── Component schemas ──────────────────────────────────────────────────────
   if (Object.keys(schemas).length > 0) {
     lines.push("// ─── Component Schemas ────────────────────────────────────────────────────────");
     lines.push("");
@@ -98,52 +101,89 @@ export function generateTypesFile(endpoints: ParsedEndpoint[], schemas: Record<s
     }
   }
 
-  // ─── Per-endpoint types ──────────────────────────────────────────────────────
-  lines.push("// ─── Endpoint Types ───────────────────────────────────────────────────────────");
-  lines.push("");
+  // ─── Endpoint-specific types ────────────────────────────────────────────────
+  // For each endpoint we generate up to 4 types: PathParams, QueryParams, Body, Response.
+  // If the schema is a $ref pointing to an already-declared component, we skip it
+  // to avoid duplicate declarations.
+  const endpointLines: string[] = [];
 
   for (const ep of endpoints) {
     const baseName = operationToTypeName(ep.operationId);
 
-    // path params
+    // Path params — always inline (no $ref possible here)
     if (ep.pathParams.length > 0) {
-      lines.push(`export interface ${baseName}PathParams {`);
+      endpointLines.push(`export interface ${baseName}PathParams {`);
       for (const p of ep.pathParams) {
         const type = schemaToTSType(p.schema);
         const comment = p.description ? `  /** ${p.description} */\n` : "";
-        lines.push(`${comment}  ${p.name}: ${type}`);
+        endpointLines.push(`${comment}  ${p.name}: ${type}`);
       }
-      lines.push(`}`);
-      lines.push("");
+      endpointLines.push(`}`);
+      endpointLines.push("");
     }
 
-    // query params
+    // Query params — always inline
     if (ep.queryParams.length > 0) {
-      lines.push(`export interface ${baseName}QueryParams {`);
+      endpointLines.push(`export interface ${baseName}QueryParams {`);
       for (const p of ep.queryParams) {
         const optional = !p.required ? "?" : "";
         const type = schemaToTSType(p.schema);
         const comment = p.description ? `  /** ${p.description} */\n` : "";
-        lines.push(`${comment}  ${p.name}${optional}: ${type}`);
+        endpointLines.push(`${comment}  ${p.name}${optional}: ${type}`);
       }
-      lines.push(`}`);
-      lines.push("");
+      endpointLines.push(`}`);
+      endpointLines.push("");
     }
 
-    // request body
+    // Request body
     if (ep.bodySchema) {
-      lines.push(`export type ${baseName}Body = ${schemaToTSType(ep.bodySchema)}`);
-      lines.push("");
+      const refName = getRefName(ep.bodySchema);
+
+      if (refName && declaredInComponents.has(refName)) {
+        // Already declared as a component — just re-export an alias only if the
+        // endpoint type name differs from the component name
+        if (`${baseName}Body` !== refName) {
+          endpointLines.push(`export type ${baseName}Body = ${refName}`);
+          endpointLines.push("");
+        }
+        // If names are identical, skip entirely — no duplicate needed
+      } else {
+        endpointLines.push(`export type ${baseName}Body = ${schemaToTSType(ep.bodySchema)}`);
+        endpointLines.push("");
+      }
     }
 
-    // response
+    // Response
     if (ep.responseSchema) {
-      lines.push(`export type ${baseName}Response = ${schemaToTSType(ep.responseSchema)}`);
-      lines.push("");
+      const refName = getRefName(ep.responseSchema);
+
+      if (refName && declaredInComponents.has(refName)) {
+        if (`${baseName}Response` !== refName) {
+          endpointLines.push(`export type ${baseName}Response = ${refName}`);
+          endpointLines.push("");
+        }
+      } else {
+        endpointLines.push(`export type ${baseName}Response = ${schemaToTSType(ep.responseSchema)}`);
+        endpointLines.push("");
+      }
     }
   }
 
+  if (endpointLines.length > 0) {
+    lines.push("// ─── Endpoint Types ───────────────────────────────────────────────────────────");
+    lines.push("");
+    lines.push(...endpointLines);
+  }
+
   return lines.join("\n");
+}
+
+// ─── Helpers ──────────────────────────────────────────────────────────────────
+
+/** Returns the $ref component name if the schema is a direct $ref, otherwise undefined */
+function getRefName(schema: SchemaObject): string | undefined {
+  if (schema.$ref) return refToTypeName(schema.$ref);
+  return undefined;
 }
 
 export function operationToTypeName(operationId: string): string {

@@ -1,6 +1,6 @@
 {
   "name": "axigen",
-  "version": "0.1.1",
+  "version": "1.0.0",
   "description": "Generate typed Axios client functions from OpenAPI / Swagger specs",
   "keywords": [
     "openapi",
@@ -37,7 +37,11 @@
     "dev": "tsx src/cli/index.ts",
     "typecheck": "tsc --noEmit",
     "lint": "eslint src --ext .ts",
-    "prepublishOnly": "npm run build && npm run typecheck"
+    "prepublishOnly": "npm run build && npm run typecheck",
+    "release": "standard-version",
+    "release:minor": "standard-version --release-as minor",
+    "release:major": "standard-version --release-as major",
+    "release:patch": "standard-version --release-as patch"
   },
   "dependencies": {
     "chalk": "^5.3.0",
@@ -48,6 +52,7 @@
   "devDependencies": {
     "@types/js-yaml": "^4.0.9",
     "@types/node": "^20.19.43",
+    "standard-version": "^9.5.0",
     "tsup": "^8.0.2",
     "tsx": "^4.7.0",
     "typescript": "^5.3.3"

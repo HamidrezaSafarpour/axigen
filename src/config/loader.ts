@@ -1,10 +1,11 @@
 import path from "node:path";
 import fs from "node:fs";
-import type { AxigenConfig } from "../types.js";
+import type { AxigenConfig, FunctionNameConfig } from "../types.js";
 
 const CONFIG_FILES = ["axigen.config.js", "axigen.config.cjs", "axigen.config.mjs", "axigen.config.ts"];
 
 export async function loadConfig(cwd: string, configPath?: string): Promise<AxigenConfig> {
+  // Use the user-specified config path if provided
   if (configPath) {
     const abs = path.resolve(cwd, configPath);
     if (!fs.existsSync(abs)) {
@@ -13,6 +14,7 @@ export async function loadConfig(cwd: string, configPath?: string): Promise<Axig
     return importConfig(abs);
   }
 
+  // Search default config file locations
   for (const filename of CONFIG_FILES) {
     const abs = path.join(cwd, filename);
     if (fs.existsSync(abs)) {
@@ -27,6 +29,7 @@ async function importConfig(filePath: string): Promise<AxigenConfig> {
   let raw: unknown;
 
   try {
+    // Dynamic import works for both ESM and CJS
     const mod = await import(filePath);
     raw = mod.default ?? mod;
   } catch {
@@ -71,5 +74,61 @@ function validateConfig(raw: unknown, filePath: string): AxigenConfig {
     language: cfg.language === "js" ? "js" : "ts",
     jsdoc: cfg.jsdoc !== false,
     tags: Array.isArray(cfg.tags) ? (cfg.tags as string[]) : undefined,
+    functionName: validateFunctionNameConfig(cfg.functionName, filePath),
   };
+}
+
+function validateFunctionNameConfig(raw: unknown, filePath: string): FunctionNameConfig | undefined {
+  if (raw === undefined || raw === null) return undefined;
+
+  if (typeof raw !== "object") {
+    throw new Error(`Config error: "functionName" must be an object`);
+  }
+
+  const fn = raw as Record<string, unknown>;
+  const result: FunctionNameConfig = {};
+
+  // Validate transforms
+  if (fn.transforms !== undefined) {
+    if (!Array.isArray(fn.transforms)) {
+      throw new Error(`Config error: "functionName.transforms" must be an array`);
+    }
+
+    result.transforms = fn.transforms.map((t: unknown, i: number) => {
+      if (!t || typeof t !== "object") {
+        throw new Error(`Config error: "functionName.transforms[${i}]" must be an object`);
+      }
+      const transform = t as Record<string, unknown>;
+
+      if (typeof transform.match !== "string") {
+        throw new Error(`Config error: "functionName.transforms[${i}].match" must be a string regex pattern`);
+      }
+      if (typeof transform.replacement !== "string") {
+        throw new Error(`Config error: "functionName.transforms[${i}].replacement" must be a string`);
+      }
+
+      // Validate the regex before accepting it
+      try {
+        new RegExp(transform.match as string, (transform.flags as string | undefined) ?? "g");
+      } catch {
+        throw new Error(`Config error: "functionName.transforms[${i}].match" is not a valid regex: ${transform.match}`);
+      }
+
+      return {
+        match: transform.match as string,
+        flags: typeof transform.flags === "string" ? transform.flags : "g",
+        replacement: transform.replacement as string,
+      };
+    });
+  }
+
+  // Validate appendMethod
+  if (fn.appendMethod !== undefined) {
+    if (typeof fn.appendMethod !== "boolean" && !Array.isArray(fn.appendMethod)) {
+      throw new Error(`Config error: "functionName.appendMethod" must be a boolean or an array of HTTP methods`);
+    }
+    result.appendMethod = fn.appendMethod as FunctionNameConfig["appendMethod"];
+  }
+
+  return result;
 }

@@ -6,7 +6,7 @@ export default defineConfig([
     format: ["esm"],
     clean: true,
     shims: true,
-    banner: { js: "#!/usr/bin/env node" },
+    // banner: { js: "#!/usr/bin/env node" },
   },
   {
     entry: { index: "src/index.ts" },
