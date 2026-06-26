@@ -9,18 +9,17 @@ export function resolveFunctionName(operationId: string, method: HttpMethod, con
 
   let name = operationId;
 
-  // Apply transforms in order — each transform receives the result of the previous one
   if (config.transforms && config.transforms.length > 0) {
     for (const transform of config.transforms) {
       name = applyTransform(name, transform);
     }
   }
 
-  // Append the HTTP method suffix if configured
+  // Prepend the HTTP method prefix if configured
   if (shouldAppendMethod(method, config.appendMethod)) {
-    // Capitalize first letter: "post" → "Post"
-    const suffix = method.charAt(0).toUpperCase() + method.slice(1).toLowerCase();
-    name = name + suffix;
+    name = method.toLowerCase() + name.charAt(0).toUpperCase() + name.slice(1);
+  } else {
+    name = name.charAt(0).toLowerCase() + name.slice(1);
   }
 
   return name;

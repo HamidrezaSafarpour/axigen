@@ -125,14 +125,20 @@ function buildOperationId(method: string, urlPath: string): string {
   const parts = urlPath
     .split("/")
     .filter(Boolean)
-    .map((segment) => {
+    .flatMap((segment) => {
       if (segment.startsWith("{") && segment.endsWith("}")) {
         const name = segment.slice(1, -1);
-        return "By" + capitalize(name);
+        return ["By", ...splitSegment(name)];
       }
-      return capitalize(segment);
+      return splitSegment(segment);
     });
-  return method.toLowerCase() + parts.join("");
+
+  return parts.map(capitalize).join("");
+}
+
+// Split a segment on "-" and "_" separators
+function splitSegment(segment: string): string[] {
+  return segment.split(/[-_]/);
 }
 
 function capitalize(s: string): string {
