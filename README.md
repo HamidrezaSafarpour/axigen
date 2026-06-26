@@ -170,31 +170,44 @@ export async function getUserByIdGet(
 
 ## Configuration
 
-| Option                | Type           | Default         | Description                                           |
-| --------------------- | -------------- | --------------- | ----------------------------------------------------- |
-| `input`               | `string`       | —               | Path to your OpenAPI spec file (YAML or JSON)         |
-| `output.client`       | `string`       | —               | Output path for the generated client functions        |
-| `output.types`        | `string`       | —               | Output path for generated TypeScript types (optional) |
-| `axiosInstancePath`   | `string`       | —               | Import path to your Axios instance                    |
-| `axiosInstanceExport` | `string`       | `axiosInstance` | Named export of your Axios instance                   |
-| `language`            | `'ts' \| 'js'` | `'ts'`          | Output language                                       |
-| `jsdoc`               | `boolean`      | `true`          | Add JSDoc comments to generated functions             |
-| `tags`                | `string[]`     | —               | Only generate endpoints matching these tags           |
+| Option                      | Type           | Default         | Description                                                              |
+| --------------------------- | -------------- | --------------- | ------------------------------------------------------------------------ |
+| `input`                     | `string`       | —               | Path to your OpenAPI spec file (YAML or JSON)                            |
+| `output.client`             | `string`       | —               | Output path for the generated client functions                           |
+| `output.types`              | `string`       | —               | Output path for generated TypeScript types (optional)                    |
+| `axiosInstancePath`         | `string`       | —               | Import path to your Axios instance                                       |
+| `axiosInstanceExport`       | `string`       | `axiosInstance` | Named export of your Axios instance                                      |
+| `language`                  | `'ts' \| 'js'` | `'ts'`          | Output language                                                          |
+| `jsdoc`                     | `boolean`      | `true`          | Add JSDoc comments to generated functions                                |
+| `tags`                      | `string[]`     | —               | Only generate endpoints matching these tags                              |
+| `functionName`              | `object`       | —               | Control generated function name transforms and method suffix (see below) |
+| `functionName.transforms`   | `Transform[]`  | `[]`            | Array of regex transform rules applied to the operationId                |
+| `functionName.appendMethod` | `string[]`     | `[]`            | HTTP methods whose name is appended as a suffix to the function name     |
 
 ### Axios Instance
 
-axigen does not create an Axios instance for you — it imports the one you already have in your project. For example:
+axigen does not create an Axios instance for you — it imports the one you already have in your project. The generated functions expect your instance to follow this call signature:
+
+```ts
+axiosInstance(config: AxiosRequestConfig, options?: AxiosRequestConfig): Promise<AxiosResponse>
+```
+
+This is intentional: it lets you intercept or merge options at the instance level (e.g. passing per-request auth headers or timeout overrides as a second argument), keeping generated code decoupled from your instance's internal logic.
+
+A typical instance looks like this:
 
 ```ts
 // src/lib/axios.ts
-import axios from "axios";
+import axios, { type AxiosRequestConfig } from "axios";
 
-export const axiosInstance = axios.create({
+const instance = axios.create({
   baseURL: "https://api.example.com/v1",
   headers: {
     "Content-Type": "application/json",
   },
 });
+
+export const axiosInstance = (config: AxiosRequestConfig, options?: AxiosRequestConfig) => instance({ ...config, ...options });
 ```
 
 Then in your config:
@@ -203,6 +216,8 @@ Then in your config:
 axiosInstancePath: '../lib/axios',
 axiosInstanceExport: 'axiosInstance', // default, can be omitted
 ```
+
+> **Note:** If you use a plain `axios.create()` instance without the two-argument wrapper, the `options` parameter passed by generated functions will be ignored. The wrapper pattern above is the recommended approach.
 
 ---
 
