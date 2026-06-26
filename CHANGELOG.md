@@ -2,6 +2,23 @@
 
 All notable changes to this project will be documented in this file. See [standard-version](https://github.com/conventional-changelog/standard-version) for commit guidelines.
 
+### [1.2.4](https://github.com/YOUR_USERNAME/axigen/compare/v1.2.2...v1.2.4) (2026-06-26)
+
+
+### ♻️ Refactoring
+
+* improve function name generation and segment splitting logic ([5574ee5](https://github.com/YOUR_USERNAME/axigen/commits/5574ee5b4d37ac04fa9ed3997bc63077af7928e5))
+
+
+### 📝 Documentation
+
+* add axiosInstanceExport option and update generated function names ([5fc43a9](https://github.com/YOUR_USERNAME/axigen/commits/5fc43a9c75752d83cfc9530858f6313e1df5c83a))
+
+
+### 🐛 Bug Fixes
+
+* add axiosInstanceExport option to init configuration cli ([22f5a98](https://github.com/YOUR_USERNAME/axigen/commits/22f5a98c4d31a56214bc9be89f1b82d7e6a36d69))
+
 ### [1.2.3](https://github.com/YOUR_USERNAME/axigen/compare/v1.2.2...v1.2.3) (2026-06-26)
 
 
