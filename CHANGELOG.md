@@ -2,6 +2,13 @@
 
 All notable changes to this project will be documented in this file. See [standard-version](https://github.com/conventional-changelog/standard-version) for commit guidelines.
 
+### [1.2.2](https://github.com/YOUR_USERNAME/axigen/compare/v1.2.1...v1.2.2) (2026-06-26)
+
+
+### 🐛 Bug Fixes
+
+* update bin entry to use .mjs extension for axigen CLI ([f8fa825](https://github.com/YOUR_USERNAME/axigen/commits/f8fa825cc0a2e51cc0d5452fec968f8798c4b914))
+
 ### [1.2.1](https://github.com/YOUR_USERNAME/axigen/compare/v1.2.0...v1.2.1) (2026-06-26)
 
 
