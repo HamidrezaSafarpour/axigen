@@ -2,6 +2,13 @@
 
 All notable changes to this project will be documented in this file. See [standard-version](https://github.com/conventional-changelog/standard-version) for commit guidelines.
 
+### [1.2.1](https://github.com/YOUR_USERNAME/axigen/compare/v1.2.0...v1.2.1) (2026-06-26)
+
+
+### 🐛 Bug Fixes
+
+* update configuration section in README to include functionName options and Axios instance details ([035c801](https://github.com/YOUR_USERNAME/axigen/commits/035c8011377895c5e79d21cf553687ab01bef47d))
+
 ## [1.2.0](https://github.com/YOUR_USERNAME/axigen/compare/v1.1.0...v1.2.0) (2026-06-25)
 
 

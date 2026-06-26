@@ -1,6 +1,6 @@
 {
   "name": "axigen",
-  "version": "1.2.0",
+  "version": "1.2.1",
   "description": "Generate typed Axios client functions from OpenAPI / Swagger specs",
   "keywords": [
     "openapi",
