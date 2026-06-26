@@ -79,6 +79,7 @@ module.exports = {
     types: './src/api/types.ts',
   },
   axiosInstancePath: '../lib/axios',
+  axiosInstanceExport: "axiosInstance",
   language: 'ts',
   jsdoc: true,
   functionName: {
