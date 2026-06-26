@@ -17,7 +17,7 @@
     "url": "https://github.com/HamidrezaSafarpour/axigen.git"
   },
   "bin": {
-    "axigen": "./dist/cli/index.js"
+    "axigen": "./dist/cli/index.mjs"
   },
   "main": "./dist/index.js",
   "types": "./dist/index.d.ts",
