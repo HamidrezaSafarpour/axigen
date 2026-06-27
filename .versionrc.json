@@ -9,6 +9,6 @@
     { "type": "test", "hidden": true },
     { "type": "build", "hidden": true }
   ],
-  "commitUrlFormat": "https://github.com/YOUR_USERNAME/axigen/commits/{{hash}}",
-  "compareUrlFormat": "https://github.com/YOUR_USERNAME/axigen/compare/{{previousTag}}...{{currentTag}}"
+  "commitUrlFormat": "https://github.com/HamidrezaSafarpour/axigen/commits/{{hash}}",
+  "compareUrlFormat": "https://github.com/HamidrezaSafarpour/axigen/compare/{{previousTag}}...{{currentTag}}"
 }
