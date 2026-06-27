@@ -69,122 +69,157 @@ function buildObjectType(schema: SchemaObject, indent: number): string {
 }
 
 function refToTypeName(ref: string): string {
-  // '#/components/schemas/UserResponse' → 'UserResponse'
   const parts = ref.split("/");
-  return parts[parts.length - 1] ?? "unknown";
+  const raw = parts[parts.length - 1] ?? "unknown";
+  return toPascalCase(raw);
+}
+
+function toPascalCase(name: string): string {
+  return name
+    .split(/[-_]/)
+    .map((part) => (part.length === 0 ? "" : part.charAt(0).toUpperCase() + part.slice(1)))
+    .join("");
+}
+
+// ─── Type collector ───────────────────────────────────────────────────────────
+
+/**
+ * Holds all type declarations to be emitted.
+ * Key   → type/interface name
+ * Value → full declaration string (without trailing newline)
+ *
+ * Using Map preserves insertion order and naturally deduplicates by name:
+ * if two endpoints reference the same schema, the second set() is a no-op
+ * because we guard with has() before inserting.
+ */
+type TypeRegistry = Map<string, { declaration: string; section: "component" | "endpoint" }>;
+
+function registerType(registry: TypeRegistry, name: string, declaration: string, section: "component" | "endpoint"): void {
+  // First writer wins — skip if the name was already registered
+  if (registry.has(name)) return;
+  registry.set(name, { declaration, section });
 }
 
 // ─── Generate types.ts file content ──────────────────────────────────────────
 
 export function generateTypesFile(endpoints: ParsedEndpoint[], schemas: Record<string, SchemaObject> = {}): string {
+  const registry: TypeRegistry = new Map();
+
+  // ─── Phase 1: collect component schemas ──────────────────────────────────
+  // Process all components/schemas first so every $ref target is registered
+  // before we start processing endpoint schemas.
+  for (const [rawName, schema] of Object.entries(schemas)) {
+    const name = toPascalCase(rawName);
+    const jsDoc = schema.description ? `/** ${schema.description} */\n` : "";
+    const declaration = `${jsDoc}export type ${name} = ${schemaToTSType(schema)}`;
+    registerType(registry, name, declaration, "component");
+  }
+
+  // ─── Phase 2: collect endpoint-specific types ─────────────────────────────
+  // For body/response: if the schema is a $ref that already exists in the
+  // registry (i.e. it was declared as a component), emit a re-export alias
+  // only when the alias name differs from the component name.
+  // PathParams / QueryParams are always inline — no $ref possible there.
+  for (const ep of endpoints) {
+    const baseName = operationToTypeName(ep.operationId);
+
+    // Path params
+    if (ep.pathParams.length > 0) {
+      const fields = ep.pathParams
+        .map((p) => {
+          const comment = p.description ? `  /** ${p.description} */\n` : "";
+          return `${comment}  ${p.name}: ${schemaToTSType(p.schema)}`;
+        })
+        .join("\n");
+      registerType(registry, `${baseName}PathParams`, `export interface ${baseName}PathParams {\n${fields}\n}`, "endpoint");
+    }
+
+    // Query params
+    if (ep.queryParams.length > 0) {
+      const fields = ep.queryParams
+        .map((p) => {
+          const optional = !p.required ? "?" : "";
+          const comment = p.description ? `  /** ${p.description} */\n` : "";
+          return `${comment}  ${p.name}${optional}: ${schemaToTSType(p.schema)}`;
+        })
+        .join("\n");
+      registerType(registry, `${baseName}QueryParams`, `export interface ${baseName}QueryParams {\n${fields}\n}`, "endpoint");
+    }
+
+    // Request body
+    if (ep.bodySchema) {
+      collectSchemaType(registry, ep.bodySchema, `${baseName}Body`);
+    }
+
+    // Response
+    if (ep.responseSchema) {
+      collectSchemaType(registry, ep.responseSchema, `${baseName}Response`);
+    }
+  }
+
+  // ─── Phase 3: emit ────────────────────────────────────────────────────────
+  return emitRegistry(registry);
+}
+
+/**
+ * Decides how to register a body/response schema:
+ * - If it is a $ref to an already-registered component → emit an alias (unless
+ *   the alias name matches the component name exactly, in which case skip).
+ * - Otherwise → emit a new type declaration.
+ */
+function collectSchemaType(registry: TypeRegistry, schema: SchemaObject, aliasName: string): void {
+  const refName = schema.$ref ? refToTypeName(schema.$ref) : undefined;
+
+  if (refName) {
+    // The schema is a $ref
+    if (registry.has(refName)) {
+      // Component already declared — only add an alias when names differ
+      if (aliasName !== refName) {
+        registerType(registry, aliasName, `export type ${aliasName} = ${refName}`, "endpoint");
+      }
+    } else {
+      // $ref target not in components (external or forward ref) — reference as-is
+      registerType(registry, aliasName, `export type ${aliasName} = ${refName}`, "endpoint");
+    }
+  } else {
+    // Inline schema → emit a standalone type
+    registerType(registry, aliasName, `export type ${aliasName} = ${schemaToTSType(schema)}`, "endpoint");
+  }
+}
+
+/** Serialise the registry into the final file string */
+function emitRegistry(registry: TypeRegistry): string {
   const lines: string[] = [];
 
   lines.push(`// This file is auto-generated by axigen. DO NOT EDIT.`);
   lines.push(`// Generated at: ${new Date().toISOString()}`);
   lines.push("");
 
-  // Track all type names declared in component schemas
-  // so we skip re-declaring them in endpoint types
-  const declaredInComponents = new Set<string>(Object.keys(schemas));
+  const componentEntries = [...registry.values()].filter((e) => e.section === "component");
+  const endpointEntries = [...registry.values()].filter((e) => e.section === "endpoint");
 
-  // ─── Component schemas ──────────────────────────────────────────────────────
-  if (Object.keys(schemas).length > 0) {
+  if (componentEntries.length > 0) {
     lines.push("// ─── Component Schemas ────────────────────────────────────────────────────────");
     lines.push("");
-
-    for (const [name, schema] of Object.entries(schemas)) {
-      if (schema.description) {
-        lines.push(`/** ${schema.description} */`);
-      }
-      lines.push(`export type ${name} = ${schemaToTSType(schema)}`);
+    for (const entry of componentEntries) {
+      lines.push(entry.declaration);
       lines.push("");
     }
   }
 
-  // ─── Endpoint-specific types ────────────────────────────────────────────────
-  // For each endpoint we generate up to 4 types: PathParams, QueryParams, Body, Response.
-  // If the schema is a $ref pointing to an already-declared component, we skip it
-  // to avoid duplicate declarations.
-  const endpointLines: string[] = [];
-
-  for (const ep of endpoints) {
-    const baseName = operationToTypeName(ep.operationId);
-
-    // Path params — always inline (no $ref possible here)
-    if (ep.pathParams.length > 0) {
-      endpointLines.push(`export interface ${baseName}PathParams {`);
-      for (const p of ep.pathParams) {
-        const type = schemaToTSType(p.schema);
-        const comment = p.description ? `  /** ${p.description} */\n` : "";
-        endpointLines.push(`${comment}  ${p.name}: ${type}`);
-      }
-      endpointLines.push(`}`);
-      endpointLines.push("");
-    }
-
-    // Query params — always inline
-    if (ep.queryParams.length > 0) {
-      endpointLines.push(`export interface ${baseName}QueryParams {`);
-      for (const p of ep.queryParams) {
-        const optional = !p.required ? "?" : "";
-        const type = schemaToTSType(p.schema);
-        const comment = p.description ? `  /** ${p.description} */\n` : "";
-        endpointLines.push(`${comment}  ${p.name}${optional}: ${type}`);
-      }
-      endpointLines.push(`}`);
-      endpointLines.push("");
-    }
-
-    // Request body
-    if (ep.bodySchema) {
-      const refName = getRefName(ep.bodySchema);
-
-      if (refName && declaredInComponents.has(refName)) {
-        // Already declared as a component — just re-export an alias only if the
-        // endpoint type name differs from the component name
-        if (`${baseName}Body` !== refName) {
-          endpointLines.push(`export type ${baseName}Body = ${refName}`);
-          endpointLines.push("");
-        }
-        // If names are identical, skip entirely — no duplicate needed
-      } else {
-        endpointLines.push(`export type ${baseName}Body = ${schemaToTSType(ep.bodySchema)}`);
-        endpointLines.push("");
-      }
-    }
-
-    // Response
-    if (ep.responseSchema) {
-      const refName = getRefName(ep.responseSchema);
-
-      if (refName && declaredInComponents.has(refName)) {
-        if (`${baseName}Response` !== refName) {
-          endpointLines.push(`export type ${baseName}Response = ${refName}`);
-          endpointLines.push("");
-        }
-      } else {
-        endpointLines.push(`export type ${baseName}Response = ${schemaToTSType(ep.responseSchema)}`);
-        endpointLines.push("");
-      }
-    }
-  }
-
-  if (endpointLines.length > 0) {
+  if (endpointEntries.length > 0) {
     lines.push("// ─── Endpoint Types ───────────────────────────────────────────────────────────");
     lines.push("");
-    lines.push(...endpointLines);
+    for (const entry of endpointEntries) {
+      lines.push(entry.declaration);
+      lines.push("");
+    }
   }
 
   return lines.join("\n");
 }
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
-
-/** Returns the $ref component name if the schema is a direct $ref, otherwise undefined */
-function getRefName(schema: SchemaObject): string | undefined {
-  if (schema.$ref) return refToTypeName(schema.$ref);
-  return undefined;
-}
 
 export function operationToTypeName(operationId: string): string {
   return operationId.charAt(0).toUpperCase() + operationId.slice(1);
