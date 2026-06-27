@@ -2,6 +2,14 @@
 
 All notable changes to this project will be documented in this file. See [standard-version](https://github.com/conventional-changelog/standard-version) for commit guidelines.
 
+### [1.2.5](https://github.com/HamidrezaSafarpour/axigen/compare/v1.2.4...v1.2.5) (2026-06-27)
+
+
+### 🐛 Bug Fixes
+
+* prevent create duplicate types, enhance type generation logic and improve schema handling in types.ts ([903c0b3](https://github.com/HamidrezaSafarpour/axigen/commits/903c0b36057197d10a3ddc45dfce05987aba42ac))
+* update commit and compare URL formats in version configuration ([89cb725](https://github.com/HamidrezaSafarpour/axigen/commits/89cb725d84b3814c11b1b799d77d402dc2b1b385))
+
 ### [1.2.4](https://github.com/YOUR_USERNAME/axigen/compare/v1.2.2...v1.2.4) (2026-06-26)
 
 
