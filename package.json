@@ -14,7 +14,7 @@
   "license": "MIT",
   "repository": {
     "type": "git",
-    "url": "https://github.com/HamidrezaSafarpour/axigen.git"
+    "url": "https://github.com/axigen-openapi/axigen.git"
   },
   "bin": {
     "axigen": "./dist/cli/index.mjs"
