@@ -34,5 +34,7 @@ coverage/
 
 # Examples
 example/
+
+# Visual Studio files
 .vs/
 
